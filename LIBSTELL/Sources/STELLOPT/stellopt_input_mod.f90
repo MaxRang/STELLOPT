@@ -349,10 +349,12 @@
                          target_dkes_33, sigma_dkes_33, &
                          target_dkes_boot, sigma_dkes_boot, &
                          target_dkes, sigma_dkes, &
-                         nu_dkes, E_dkes,&
+                         nu_dkes, E_dkes, lkeep_dkes, &
                          target_dkes_Erdiff, sigma_dkes_Erdiff, nu_dkes_Erdiff, Ep_dkes_Erdiff, Em_dkes_Erdiff, &
                          target_dkes_alpha, sigma_dkes_alpha, &
                          nup_dkes_alpha, num_dkes_alpha, Ep_dkes_alpha, Em_dkes_alpha, &
+                         target_penta_er, sigma_penta_er, &
+                         target_penta_j, sigma_penta_j, &
                          target_jdotb,sigma_jdotb,target_bmin,sigma_bmin,&
                          target_bmax,sigma_bmax,target_jcurv,sigma_jcurv,&
                          target_orbit,sigma_orbit,nu_orbit,nv_orbit,&
@@ -372,7 +374,7 @@
                          lcoilsurf_opt, dcoilsurf_opt, &
                          rbc_coilsurf, rbc_coilsurf_min, rbc_coilsurf_max,&
                          zbs_coilsurf, zbs_coilsurf_min, zbs_coilsurf_max,&
-                         lcoil_kts_opt, dcoil_kts_opt, &
+                         coil_type, lcoil_kts_opt, dcoil_kts_opt, &
                          rho_coil_kts, rho_coil_kts_min, rho_coil_kts_max, &
                          theta_coil_kts, theta_coil_kts_min, theta_coil_kts_max, &
                          zeta_coil_kts, zeta_coil_kts_min, zeta_coil_kts_max, &
@@ -382,7 +384,10 @@
                          target_bnormal, sigma_bnormal, &
                          target_bnmns, sigma_bnmns, target_bnmnc, sigma_bnmnc,  &
                          target_coil_curvature, sigma_coil_curvature, &
+                         target_coil_distortion, sigma_coil_distortion, &
+                         distortion_curvature_min, distortion_curvature_max, &
                          target_coil_torsion, sigma_coil_torsion, &
+                         target_coil_total_torsion, sigma_coil_total_torsion, &
                          target_coilcoil_distance, sigma_coilcoil_distance, &
                          target_coil_baxis, sigma_coil_baxis, &
                          target_coil_length, sigma_coil_length, &
@@ -618,6 +623,7 @@
       emis_xics_f(:)   = 0.0
       ! COILS
       lcreate_coils = .false.
+      coil_type(:)           = 1 ! 1: modular, 2: helical, 3:saddle
       rho_coil_kts(:,:)   = -1.0
       theta_coil_kts(:,:) =  0.0
       zeta_coil_kts(:,:)  =  0.0
@@ -920,6 +926,7 @@
          Em_dkes_alpha      = -2*bigno
          nruns_dkes        = 0 ! This is here to default the value for each run
       END IF
+      lkeep_dkes        = .false.
       target_dkes       = 0.0
       sigma_dkes        = bigno
       target_dkes_11    = 0.0
@@ -934,6 +941,11 @@
       sigma_dkes_alpha   = bigno
       target_dkes_boot   = 0.0
       sigma_dkes_boot    = bigno
+      !lneed_penta       = .false.
+      target_penta_er    = 0.0
+      sigma_penta_er    = bigno
+      target_penta_j    = 0.0
+      sigma_penta_j    = bigno
       target_jdotb      = 0.0
       sigma_jdotb       = bigno
       target_jcurv      = 0.0
@@ -961,8 +973,14 @@
       sigma_bnmnc              = bigno
       target_coil_curvature    = 0.0
       sigma_coil_curvature     = bigno
+      target_coil_distortion   = 0.0
+      sigma_coil_distortion    = bigno
+      distortion_curvature_min = 0.20D+00
+      distortion_curvature_max = 0.65D+00
       target_coil_torsion      = 0.0
       sigma_coil_torsion       = bigno
+      target_coil_total_torsion      = 0.0
+      sigma_coil_total_torsion       = bigno
       target_coilcoil_distance = 0.0
       sigma_coilcoil_distance  = bigno
       target_coil_baxis        = 1.0
@@ -1065,6 +1083,8 @@
       target_dkes_Erdiff(1) = 0.0; sigma_dkes_Erdiff(1) = bigno
       target_dkes_alpha(1) = 0.0; sigma_dkes_alpha(1) = bigno
       target_dkes_boot(1) = 0.0; sigma_dkes_boot(1) = bigno
+      target_penta_er(1)  = 0.0;  sigma_penta_er(1)   = bigno
+      target_penta_j(1)  = 0.0;  sigma_penta_j(1)   = bigno
 
       ! Backwards compatibility for old DKES deffinition
       WHERE(sigma_dkes < bigno) target_dkes_11 = target_dkes
@@ -1392,13 +1412,31 @@
          IF (nw_coil > 1) WRITE(iunit,outflt) 'WIDTH_COIL',width_coil
          IF (nh_coil > 1) WRITE(iunit,outflt) 'HEIGHT_COIL',height_coil
          DO n = LBOUND(rho_coil_kts,DIM=1), UBOUND(rho_coil_kts,DIM=1)
-            IF (ANY(rho_coil_kts(n,:)>=0)) THEN
-               m = FINDLOC(rho_coil_kts(n,:)>=0,.true.,DIM=1,BACK=.true.)
-               WRITE(iunit,'(A,I2)') '!----- COIL ',n
-               WRITE(outputstring,'(A,I2,A)') '(2X,A,I3,A,',m,'(ES22.12E3))'
-               WRITE(iunit,outputstring) 'RHO_COIL_KTS(',n,',:) = ', (rho_coil_kts(n,ii), ii=1,m)
-               WRITE(iunit,outputstring) 'THETA_COIL_KTS(',n,',:) = ', (theta_coil_kts(n,ii), ii=1,m)
-               WRITE(iunit,outputstring) 'ZETA_COIL_KTS(',n,',:) = ', (zeta_coil_kts(n,ii), ii=1,m)
+            IF (coil_type(n) < 3) THEN
+               IF (ANY(rho_coil_kts(n,:)>=0)) THEN
+                  m = FINDLOC(rho_coil_kts(n,:)>=0,.true.,DIM=1,BACK=.true.)
+                  WRITE(iunit,'(A,I2)') '!----- COIL ',n
+                  WRITE(iunit,'(2X,A,I3,A,I3)') 'COIL_TYPE(',n,') = ',coil_type(n) 
+                  WRITE(outputstring,'(A,I2,A)') '(2X,A,I3,A,',m,'(ES22.12E3))'
+                  WRITE(iunit,outputstring) 'RHO_COIL_KTS(',n,',:) = ', (rho_coil_kts(n,ii), ii=1,m)
+                  WRITE(iunit,outputstring) 'THETA_COIL_KTS(',n,',:) = ', (theta_coil_kts(n,ii), ii=1,m)
+                  WRITE(iunit,outputstring) 'ZETA_COIL_KTS(',n,',:) = ', (zeta_coil_kts(n,ii), ii=1,m)
+               END IF
+            ELSEIF (coil_type(n) == 3) THEN
+               IF (rho_coil_kts(n,1)>=0) THEN
+                  WRITE(iunit,'(A,I2)') '!----- SADDLE COIL ',n
+                  WRITE(iunit,'(2X,A,I3,A,I3)') 'COIL_TYPE(',n,') = ',coil_type(n) 
+                  WRITE(iunit,'(2X,A,I3,A,1(ES22.12E3))') 'RHO_COIL_KTS(',n,',:) = ', rho_coil_kts(n,1)
+                  WRITE(iunit,'(2X,A,I3,A,2(ES22.12E3))') 'THETA_COIL_KTS(',n,',:) = ', (theta_coil_kts(n,ii), ii=1,2)
+                  WRITE(iunit,'(2X,A,I3,A,2(ES22.12E3))') 'ZETA_COIL_KTS(',n,',:) = ', (zeta_coil_kts(n,ii), ii=1,2)
+               END IF
+            ELSEIF (coil_type(n) == 4) THEN
+               IF (rho_coil_kts(n,1)>=0) THEN
+                  WRITE(iunit,'(A,I2)') '!----- TF COIL ',n
+                  WRITE(iunit,'(2X,A,I3,A,I3)') 'COIL_TYPE(',n,') = ',coil_type(n) 
+                  WRITE(iunit,'(2X,A,I3,A,1(ES22.12E3))') 'RHO_COIL_KTS(',n,',:) = ', rho_coil_kts(n,1)
+                  WRITE(iunit,'(2X,A,I3,A,1(ES22.12E3))') 'ZETA_COIL_KTS(',n,',:) = ', zeta_coil_kts(n,1)
+               END IF
             END IF
          END DO
       END IF
@@ -1748,6 +1786,23 @@
                           'LSSD_KINK(',ik,') = ',lssd_kink(ik)
          END DO
       END IF
+      IF (ANY(sigma_dkes_11   < bigno ) .or. &
+          ANY(sigma_dkes_31   < bigno ) .or. &
+          ANY(sigma_dkes_33   < bigno ) .or. &
+          ANY(sigma_dkes_boot < bigno ) .or. &
+          ANY(sigma_penta_er  < bigno ) .or. &
+          ANY(sigma_penta_j   < bigno)) THEN
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,'(A)') '!          DKES Er/nu pairs'  
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,outboo) 'LKEEP_DKES',lkeep_dkes
+         DO ii = 1, nprof
+            IF (E_dkes(ii)>-bigno .and. nu_dkes(ii)>-bigno) &
+               WRITE(iunit,"(2X,2(2X,A,I3.3,A,ES22.12E3))") &
+                       'NU_DKES(',ii,') = ',NU_dkes(ii), &
+                       'E_DKES(',ii,') = ',E_dkes(ii)
+         END DO
+      END IF
       IF (ANY(sigma_dkes_11 < bigno ) .or. &
           ANY(sigma_dkes_31 < bigno ) .or. &
           ANY(sigma_dkes_33 < bigno )) THEN
@@ -1787,12 +1842,6 @@
                           'SIGMA_DKES_33(',ik,') = ',sigma_dkes_33(ik)
             END IF
          END DO
-         DO ii = 1, nprof
-            IF (E_dkes(ii)>-bigno .and. nu_dkes(ii)>-bigno) &
-               WRITE(iunit,"(2X,2(2X,A,I3.3,A,ES22.12E3))") &
-                       'NU_DKES(',ii,') = ',NU_dkes(ii), &
-                       'E_DKES(',ii,') = ',E_dkes(ii)
-         END DO
       END IF
       IF (ANY(sigma_dkes_Erdiff < bigno)) THEN
          WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
@@ -1828,12 +1877,6 @@
                           'SIGMA_DKES_BOOT(',ik,') = ',sigma_dkes_boot(ik)
             END IF
          END DO
-         DO ii = 1, nprof
-            IF (E_dkes(ii)>-bigno .and. nu_dkes(ii)>-bigno) &
-               WRITE(iunit,"(2X,2(2X,A,I3.3,A,ES22.12E3))") &
-                       'NU_DKES(',ii,') = ',NU_dkes(ii), &
-                       'E_DKES(',ii,') = ',E_dkes(ii)
-         END DO
       END IF
       IF (ANY(sigma_dkes_alpha < bigno)) THEN
          WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
@@ -1859,6 +1902,38 @@
                WRITE(iunit,"(2X,2(2X,A,I3.3,A,ES22.12E3))") &
                              'Ep_DKES_ALPHA(',ii,') = ',Ep_dkes_alpha(ii), &
                              'Em_DKES_ALPHA(',ii,') = ',Em_dkes_alpha(ii)
+         END DO
+      END IF
+      IF (ANY(sigma_penta_er < bigno)) THEN
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,'(A)') '!          PENTA ER'  
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         n=0
+         DO ik = 1,UBOUND(sigma_penta_er,DIM=1)
+            IF(sigma_penta_er(ik) < bigno) n=ik
+         END DO
+         DO ik = 1, n
+            IF (sigma_penta_er(ik) < bigno) THEN
+               WRITE(iunit,"(2(2X,A,I3.3,A,ES22.12E3))") &
+                          'TARGET_PENTA_ER(',ik,') = ',target_penta_er(ik), &
+                          'SIGMA_PENTA_ER(',ik,') = ',sigma_penta_er(ik)
+            END IF
+         END DO
+      END IF
+      IF (ANY(sigma_penta_j < bigno)) THEN
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,'(A)') '!          PENTA J'  
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         n=0
+         DO ik = 1,UBOUND(sigma_penta_j,DIM=1)
+            IF(sigma_penta_j(ik) < bigno) n=ik
+         END DO
+         DO ik = 1, n
+            IF (sigma_penta_j(ik) < bigno) THEN
+               WRITE(iunit,"(2(2X,A,I3.3,A,ES22.12E3))") &
+                          'TARGET_PENTA_J(',ik,') = ',target_penta_j(ik), &
+                          'SIGMA_PENTA_J(',ik,') = ',sigma_penta_j(ik)
+            END IF
          END DO
       END IF
       IF (ANY(sigma_jdotb < bigno)) THEN
@@ -2476,12 +2551,12 @@
          DO m = 0, bnorm_mmax
             DO n = -bnorm_nmax, bnorm_nmax
                IF (sigma_bnmns(n,m) < bigno) THEN
-                  WRITE(iunit,"(2(2X,A,I3.3,',',I3.3,A,1X,'=',1X,ES22.12E3))")&
+                  WRITE(iunit,"(2(2X,A,I4.3,',',I3.3,A,1X,'=',1X,ES22.12E3))")&
                   'TARGET_BNMNS(',n,m,')',target_bnmns(n,m),&
                   'SIGMA_BNMNS(',n,m,')',sigma_bnmns(n,m)
                END IF
                IF (sigma_bnmnc(n,m) < bigno) THEN
-                  WRITE(iunit,"(2(4X,A,I3.3,',',I3.3,A,1X,'=',1X,ES22.12E3))")&
+                  WRITE(iunit,"(2(4X,A,I4.3,',',I3.3,A,1X,'=',1X,ES22.12E3))")&
                   'TARGET_BNMNC(',n,m,')',target_bnmnc(n,m),&
                   'SIGMA_BNMNC(',n,m,')',sigma_bnmnc(n,m)
                END IF
@@ -2495,12 +2570,28 @@
          WRITE(iunit,outflt) 'TARGET_COIL_CURVATURE',target_coil_curvature
          WRITE(iunit,outflt) 'SIGMA_COIL_CURVATURE',sigma_coil_curvature
       END IF
+      IF (sigma_coil_distortion < bigno) THEN
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,'(A)') '!          TARGET COIL DISTORTION (weighted curvature)'
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,outflt) 'TARGET_COIL_DISTORTION',target_coil_distortion
+         WRITE(iunit,outflt) 'SIGMA_COIL_DISTORTION',sigma_coil_distortion
+         WRITE(iunit,outflt) 'DISTOTRION_CURVATURE_MIN',distortion_curvature_min
+         WRITE(iunit,outflt) 'DISTOTRION_CURVATURE_MAX',distortion_curvature_max
+      END IF
       IF (sigma_coil_torsion < bigno) THEN
          WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
-         WRITE(iunit,'(A)') '!          TARGET COIL TORSION'
+         WRITE(iunit,'(A)') '!          TARGET COIL TORSION (mean)'
          WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
          WRITE(iunit,outflt) 'TARGET_COIL_TORSION',target_coil_torsion
          WRITE(iunit,outflt) 'SIGMA_COIL_TORSION',sigma_coil_torsion
+      END IF
+      IF (sigma_coil_total_torsion < bigno) THEN
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,'(A)') '!          TARGET COIL TOTAL TORSION (integral)'
+         WRITE(iunit,'(A)') '!----------------------------------------------------------------------'
+         WRITE(iunit,outflt) 'TARGET_COIL_TOTAL_TORSION',target_coil_total_torsion
+         WRITE(iunit,outflt) 'SIGMA_COIL_TOTAL_TORSION',sigma_coil_total_torsion
       END IF
       IF (sigma_coilcoil_distance < bigno) THEN
          WRITE(iunit,'(A)') '!----------------------------------------------------------------------'

@@ -64,9 +64,10 @@
                                   r_hc, phi_hc, z_hc, num_hcp, delta_hc,&
                                   errorfield_amp,errorfield_phase, &
                                   mumaterial_tol, mumaterial_niter, &
+                                  mumaterial_nneighbor, &
                                   mumaterial_lambda, mumaterial_lamfactor, &
                                   mumaterial_lamthresh, mumaterial_padfactor, &
-                                  mumaterial_convcheck
+                                  mumaterial_convcheck, mumaterial_scale
       
 !-----------------------------------------------------------------------
 !     Subroutines
@@ -112,9 +113,12 @@
       !MUMATERIAL Defaults
       mumaterial_tol = 1.0D-5
       mumaterial_niter = 100
-      mumaterial_lambda = 0.7
-      mumaterial_lamfactor = 0.75
-      mumaterial_nneighbor = 100
+      mumaterial_lamthresh = 10
+      mumaterial_lambda = 0.7D+00
+      mumaterial_lamfactor = 0.75D+00
+      mumaterial_padfactor = 1.0D+00
+      mumaterial_convcheck = 99.0D+00
+      mumaterial_scale = 1.0_rprec
 
       int_type = "NAG"
       IF (TRIM(filename) == "") RETURN
@@ -184,12 +188,15 @@
       WRITE(iunit_out,outflt) 'PHIMIN',phimin
       WRITE(iunit_out,outflt) 'PHIMAX',phimax
       WRITE(iunit_out,outflt) 'VC_ADAPT_TOL',vc_adapt_tol
-      WRITE(iunit_out,'(A)') '!---------- Magnetic Material Parameters ----------'
+      WRITE(iunit_out,'(A)') '!---------- Magnetic Material Parameters ----------' 
       WRITE(iunit_out,outint) 'MUMATERIAL_NITER',mumaterial_niter
-      WRITE(iunit_out,outint) 'MUMATERIAL_NNEIGHBOR',mumaterial_nneighbor
       WRITE(iunit_out,outflt) 'MUMATERIAL_TOL',mumaterial_tol
+      WRITE(iunit_out,outint) 'MUMATERIAL_LAMTHRESH',mumaterial_lamthresh
       WRITE(iunit_out,outflt) 'MUMATERIAL_LAMBDA',mumaterial_lambda
       WRITE(iunit_out,outflt) 'MUMATERIAL_LAMFACTOR',mumaterial_lamfactor
+      WRITE(iunit_out,outflt) 'MUMATERIAL_PADFACTOR',mumaterial_padfactor
+      WRITE(iunit_out,outflt) 'MUMATERIAL_CONVCHECK',mumaterial_convcheck
+      WRITE(iunit_out,outflt) 'MUMATERIAL_SCALE',mumaterial_scale
       WRITE(iunit_out,'(A)') '!---------- Marker Tracking Parameters ------------'
       WRITE(iunit_out,outstr) 'INT_TYPE',TRIM(int_type)
       WRITE(iunit_out,outflt) 'FOLLOW_TOL',follow_tol
@@ -283,6 +290,7 @@
       CALL MPI_BCAST(mumaterial_tol,1,MPI_REAL8, local_master, MPI_COMM_FIELDLINES,istat)
       CALL MPI_BCAST(mumaterial_lambda,1,MPI_REAL8, local_master, MPI_COMM_FIELDLINES,istat)
       CALL MPI_BCAST(mumaterial_lamfactor,1,MPI_REAL8, local_master, MPI_COMM_FIELDLINES,istat)
+      CALL MPI_BCAST(mumaterial_scale,1,MPI_REAL8, local_master, MPI_COMM_FIELDLINES,istat)
 #endif
       END SUBROUTINE BCAST_FIELDLINES_INPUT
 
